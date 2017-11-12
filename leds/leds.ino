@@ -51,6 +51,7 @@ float duration = 1;
 Color* colors;
 byte colorNumber = 1;
 float intensity = 1;
+bool on = true;
 
 // strip colors;
 Color* stripColors ;
@@ -120,7 +121,7 @@ void parseCmd( String cmd ) {
       }
     } else if ( cmdName.equals("setDuration")){
       float tmp = cmdParam.toFloat();
-      if ( duration > 0 ){
+      if ( tmp > 0 ){
         duration = tmp;
         Serial.print("Duration set to " );
         Serial.println( duration );
@@ -129,12 +130,21 @@ void parseCmd( String cmd ) {
       }
     } else if ( cmdName.equals("setIntensity")){
       float tmp = cmdParam.toFloat();
-      if ( duration >= 0 && duration <= 1){
+      if ( tmp >= 0 && tmp <= 1){
         intensity = tmp;
         Serial.print("Intensity set to " );
         Serial.println( intensity );
       } else {
         Serial.println("wrong intensity");
+      }
+    } else if ( cmdName.equals("setOnOff")){
+      float tmp = cmdParam.toInt();
+      if ( tmp ){
+        on = true;
+        Serial.print("Set to on" );
+      } else {
+        on = false;
+        Serial.print("Set to off" );
       }
     } else {
       Serial.println("unknown cmd");
