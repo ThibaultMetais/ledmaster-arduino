@@ -1,7 +1,10 @@
+#include <Adafruit_NeoPixel.h>
+
 #define PIN_LED 12
 #define MODE_NUMBER 2
 #define MAX_COLOR 5
-#define LED_NUMBER 60
+#define LED_NUMBER 100
+#define STRIP_PIN 6
 
 String cmd = "";
 
@@ -55,10 +58,16 @@ bool on = true;
 
 // strip colors;
 Color* stripColors ;
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(150, STRIP_PIN, NEO_GRB + NEO_KHZ800);
+
 
 void setup() {
+  strip.begin();
+  strip.show(); // Turn off the leds 
+
+  
   colors = new Color[MAX_COLOR]();
-  stripColors = new Color[MAX_COLOR]();
+  stripColors = new Color[LED_NUMBER]();
 
   
   pinMode( PIN_LED , OUTPUT);
@@ -66,9 +75,24 @@ void setup() {
   Serial.println("Hello Computer");
 }
 
-void loop() {
-  
+void setPixelColor(int i, Color c){
+  strip.setPixelColor(i, c.getRed(), c.getBlue() , c.getGreen());
 }
+
+void loop() {
+
+
+  /*for (int i = 0; i < LED_NUMBER; i++){
+    setPixelColor(i, stripColors[i]);
+  }*/
+  for (int i = 0; i < LED_NUMBER; i ++){
+    strip.setPixelColor(i, 255, 0 , 0);
+    strip.setPixelColor((i-1+LED_NUMBER) % LED_NUMBER, 255, 255 , 255);
+    strip.show(); // on affiche
+    delay(50);
+  }
+}
+
 
 
 
