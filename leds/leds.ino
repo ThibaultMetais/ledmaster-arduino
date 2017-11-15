@@ -3,7 +3,7 @@
 #define PIN_LED 12
 #define MODE_NUMBER 2
 #define MAX_COLOR 5
-#define LED_NUMBER 100
+#define LED_NUMBER 88
 #define STRIP_PIN 6
 
 String cmd = "";
@@ -12,40 +12,8 @@ enum ModeEnum{
   STATIC = 1, WAVE = 2
 };
 
-class Color{
+struct Color {
   byte red, green, blue;
-
-  public:
-    Color(){
-      this->red = 255;
-      this->green = 255;
-      this->blue = 255;
-    }
-    Color(char r, char g, char b){
-      this->red = r;
-      this->green = g;
-      this->blue = b;
-    }
-    Color(String str){
-      if ( str.length() >= 3 ){
-        this->red = str[0];
-        this->green = str[1];
-        this->blue = str[2];
-      } else {
-        this->red = 255;
-        this->green = 255;
-        this->blue = 255;
-      } 
-    }
-    byte getRed(){
-      return red;
-    }
-    byte getGreen(){
-      return green;
-    }
-    byte getBlue(){
-      return blue;
-    }
 };
 
 /// PARAMS
@@ -54,10 +22,13 @@ float duration = 1;
 Color* colors;
 byte colorNumber = 1;
 float intensity = 1;
-bool on = true;
+byte on = 0;
 
+
+// vars
+float timeVar = 0;
+int prevTime = 0;
 // strip colors;
-Color* stripColors ;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(150, STRIP_PIN, NEO_GRB + NEO_KHZ800);
 
 
@@ -67,34 +38,77 @@ void setup() {
 
   
   colors = new Color[MAX_COLOR]();
-  stripColors = new Color[LED_NUMBER]();
-
   
   pinMode( PIN_LED , OUTPUT);
   Serial.begin( 9600 );
   Serial.println("Hello Computer");
 }
 
-void setPixelColor(int i, Color c){
-  strip.setPixelColor(i, c.getRed(), c.getBlue() , c.getGreen());
+void setPixelColor(int i, byte r, byte g, byte b){
+  strip.setPixelColor(i, r,g,b);
+}
+
+/*                         2    
+ *                ------------------
+ *                |                |
+ *              1 |                | 3
+ *                |                |
+ *                ------------------
+ *                        4
+ *            ---------------------------
+ *            |      8      |      5    |
+ *            |             |           |
+ *            ---------------------------
+ *            |      7      |      6    |
+ *            |             |           |
+ *            ---------------------------
+ */
+void setSideColor(int i, byte r, byte g, byte b ){
+  int from, to;
+  switch( i ){
+    case 0: from = 0; to = 8; break;
+    case 1: from = 8; to = 24; break;
+    case 2: from = 24; to = 32; break;
+    case 3: from = 32; to = 48; break;
+    case 4: from = 48; to = 58; break;
+    case 5: from = 58; to = 68; break;
+    case 6: from = 68; to = 78; break;
+    case 7: from = 78; to = 88; break;
+  }
+  for ( i = from; i < to ; i ++ ){
+    setPixelColor(i, r,g,b );
+  }
 }
 
 void loop() {
 
+  timeVar += (float)(prevTime - millis()) / 1000.0;
+  if ( timeVar > duration ){
+    timeVar -= (int)(timeVar / duration) * duration;
+  }
+  prevTime = millis();
+  
 
   /*for (int i = 0; i < LED_NUMBER; i++){
     setPixelColor(i, stripColors[i]);
   }*/
   for (int i = 0; i < LED_NUMBER; i ++){
-    strip.setPixelColor(i, 255, 0 , 0);
-    strip.setPixelColor((i-1+LED_NUMBER) % LED_NUMBER, 255, 255 , 255);
-    strip.show(); // on affiche
+    setPixelColor(i, 255, 0 , 0);
+    setPixelColor((i-1+LED_NUMBER) % LED_NUMBER, 255, 255 , 255);
+    updatePixels();
     delay(50);
   }
 }
 
 
+/* Update the pixels 
+ */
+void updatePixels(){
+  strip.show(); // on affiche
+}
 
+/* Receive the cmd
+ */
 
 void serialEvent() {
   while (Serial.available()) {
@@ -109,7 +123,9 @@ void serialEvent() {
   }
 }
 
-
+/* Parse the cmd and execute the cmd
+ * 
+ */
 void parseCmd( String cmd ) {
   int splitIndex = cmd.indexOf(':');
   if ( splitIndex > 0 ){
@@ -133,14 +149,13 @@ void parseCmd( String cmd ) {
     } else if ( cmdName.equals("setColors")){
       int l = cmdParam.length();
       Serial.println(l);
-      if (l > 0 && l % 3 == 0 ){
-        colorNumber = l / 3;
+      if (l > 0 && l % 9 == 0 ){
+        colorNumber = l / 9;
         for ( int i = 0; i < colorNumber ; i ++){
-          colors[i] = cmdParam.substring(i * 3, (i + 1) * 3);
+          colors[i].red =   (byte)atoi(cmdParam.substring(i * 9        , i * 9 + 1 * 3).c_str());
+          colors[i].green = (byte)atoi(cmdParam.substring(i * 9 + 1 * 3, i * 9 + 2 * 3).c_str());
+          colors[i].blue =  (byte)atoi(cmdParam.substring(i * 9 + 2 * 3, i * 9 + 3 * 3).c_str());
           Serial.print("Color set to ");
-          Serial.print(colors[i].getRed() );
-          Serial.print(colors[i].getGreen() );
-          Serial.print(colors[i].getBlue() );
         }
       }
     } else if ( cmdName.equals("setDuration")){
@@ -163,43 +178,45 @@ void parseCmd( String cmd ) {
       }
     } else if ( cmdName.equals("setOnOff")){
       float tmp = cmdParam.toInt();
-      if ( tmp ){
-        on = true;
-        Serial.print("Set to on" );
-      } else {
-        on = false;
-        Serial.print("Set to off" );
+      if ( tmp >= 0 && tmp < 4 ){
+        on = tmp;
+        Serial.print("Set to" );
+        Serial.println( tmp );
       }
     } else {
       Serial.println("unknown cmd");
     }
   } else { // no params
     if ( cmd.equals("getInfo")){
-      Serial.print("{\"colors\":{" );
-      for ( int i = 0; i < colorNumber ; i ++){
-        Serial.print( "\"" );
-        Serial.print( i );
-        Serial.print( "\":{\"r\":" );
-        Serial.print( colors[i].getRed() );
-        Serial.print( ",\"g\":" );
-        Serial.print( colors[i].getGreen() );
-        Serial.print( ",\"b\":" );
-        Serial.print( colors[i].getBlue() );
-        Serial.print( "}" );
-        if ( i + 1 < colorNumber ){
-          Serial.print( "," );
-        }
-      }
-      Serial.print("},");
-      Serial.print( "\"duration\":" );
-      Serial.print( duration );
-      Serial.print( ", \"instensity\":");
-      Serial.print( intensity );
-      Serial.print( ", \"mode\":");
-      Serial.print( mode );
-      Serial.println("}");
+      sendInfoJSON();
     }
   }
-  
+}
+
+
+void sendInfoJSON(){
+  Serial.print("{\"colors\":{" );
+    for ( int i = 0; i < colorNumber ; i ++){
+      Serial.print( "\"" );
+      Serial.print( i );
+      Serial.print( "\":{\"r\":" );
+      Serial.print( colors[i].red );
+      Serial.print( ",\"g\":" );
+      Serial.print( colors[i].green );
+      Serial.print( ",\"b\":" );
+      Serial.print( colors[i].blue );
+      Serial.print( "}" );
+      if ( i + 1 < colorNumber ){
+        Serial.print( "," );
+      }
+    }
+    Serial.print("},");
+    Serial.print( "\"duration\":" );
+    Serial.print( duration );
+    Serial.print( ", \"instensity\":");
+    Serial.print( intensity );
+    Serial.print( ", \"mode\":");
+    Serial.print( mode );
+    Serial.println("}");
 }
 
