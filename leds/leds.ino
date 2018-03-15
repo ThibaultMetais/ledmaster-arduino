@@ -1,7 +1,7 @@
 #include <Adafruit_NeoPixel.h>
 
 #define PIN_LED 12
-#define MODE_NUMBER 2
+#define MODE_NUMBER 3
 #define MAX_COLOR 5
 #define LED_NUMBER 88
 #define STRIP_PIN 6
@@ -9,7 +9,10 @@
 String cmd = "";
 
 enum ModeEnum{
-  STATIC = 1, WAVE = 2
+  STATIC = 1, WAVE = 2, MOSAIC = 3
+};
+enum Side{
+  SCREEN_LEFT = 1, SCREEN_TOP, SCREEN_RIGHT, SCREEN_BOTTOM, N_E, S_E, S_O, N_O 
 };
 
 struct Color {
@@ -17,17 +20,17 @@ struct Color {
 };
 
 /// PARAMS
-ModeEnum mode = WAVE;
+ModeEnum mode = MOSAIC;
 float duration = 10;
 Color* colors;
 byte colorNumber = 1;
-float intensity = 1;
+byte intensity = 255;
 byte on = 1;
 
 
 // vars
 float timeVar = 0;
-int prevTime = 0;
+long prevTime = 0;
 // strip colors;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(150, STRIP_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -47,12 +50,16 @@ void setup() {
 }
 
 void setPixelColor(int i, byte r, byte g, byte b){
+  setPixelColor(i, r, g, b, 1);
+}
+
+void setPixelColor(int i, byte r, byte g, byte b, float brightCoef){
+  float bright = (float)intensity/255.0 * brightCoef;
   if ( i > 68 ){ // ignore a dead led.
-    strip.setPixelColor(i-1, r,g,b);
+    strip.setPixelColor(i-1, (byte)((float)r*bright),(byte)((float)g*bright),(byte)((float)b*bright));
   } else {
-    strip.setPixelColor(i, r,g,b);
+    strip.setPixelColor(i, (byte)((float)r*bright),(byte)((float)g*bright),(byte)((float)b*bright));
   }
-  
 }
 
 /*                         2    
@@ -70,19 +77,19 @@ void setPixelColor(int i, byte r, byte g, byte b){
  *            |             |           |
  *            ---------------------------
  */
-void setSideColor(int i, byte r, byte g, byte b ){
+void setSideColor(Side side, byte r, byte g, byte b ){
   int from, to;
-  switch( i ){
-    case 0: from = 0; to = 8; break;
-    case 1: from = 8; to = 24; break;
-    case 2: from = 24; to = 32; break;
-    case 3: from = 32; to = 48; break;
-    case 4: from = 48; to = 58; break;
-    case 5: from = 58; to = 68; break;
-    case 6: from = 68; to = 78; break;
-    case 7: from = 78; to = 88; break;
+  switch( side ){
+    case SCREEN_LEFT: from = 0; to = 8; break;
+    case SCREEN_TOP: from = 8; to = 24; break;
+    case SCREEN_RIGHT: from = 24; to = 32; break;
+    case SCREEN_BOTTOM: from = 32; to = 48; break;
+    case N_E: from = 48; to = 58; break;
+    case S_E: from = 58; to = 68; break;
+    case S_O: from = 68; to = 78; break;
+    case N_O: from = 78; to = 88; break;
   }
-  for ( i = from; i < to ; i ++ ){
+  for ( int i = from; i < to ; i ++ ){
     setPixelColor(i, r,g,b );
   }
 }
@@ -109,6 +116,12 @@ void loop() {
         setPixelColor(i, colors[0].red, colors[0].green, colors[0].blue);
       }
       delay(10);
+    } else if ( mode == WAVE){
+      float brightness = (sin(progress * 2 * PI) + 1)/2.0;
+      for (int i = 0; i < LED_NUMBER; i ++){
+        setPixelColor(i, colors[0].red, colors[0].green, colors[0].blue, brightness);
+      }
+      delay(10);
     } else {
         for (int i = 0; i < LED_NUMBER; i ++){
           float red = 0.0;
@@ -125,10 +138,10 @@ void loop() {
           }
           setPixelColor(i, int(red),int(blue), int(green));
         }
-        setSideColor( 4, 255, 255, 0);
-        setSideColor( 5, 255, 0, 255);
-        setSideColor( 6, 255, 255, 0);
-        setSideColor( 7, 0, 255, 255);
+        setSideColor( N_E, 255, 255, 0);
+        setSideColor( S_E, 255, 0, 255);
+        setSideColor( S_O, 255, 255, 0);
+        setSideColor( N_O, 0, 255, 255);
     }
     updatePixels();
   } else {
@@ -139,12 +152,6 @@ void loop() {
     updatePixels();
   }
 
-
-
-  
-
-
-  delay(10);
   while (Serial1.available()) {
     char c = Serial1.read();
     if ( c != '\n'){
@@ -213,6 +220,8 @@ int parseCmd( String cmd ) {
     cmdName = cmd.substring(0, splitIndex); 
     cmdParam = cmd.substring(splitIndex + 1, sumIndex);
   }
+
+  // ALIAS
   
   if ( cmdName.equals("sM")){
     cmdName = "setMode";
@@ -220,6 +229,12 @@ int parseCmd( String cmd ) {
     cmdName = "setColors";
   } else if ( cmdName.equals("sO")){
     cmdName = "setOnOff";
+  } else if ( cmdName.equals("sD")){
+    cmdName = "setDuration";
+  } else if ( cmdName.equals("sI")){
+    cmdName = "setIntensity";
+  } else if ( cmdName.equals("gI")){
+    cmdName = "getInfo";
   }
   
   Serial1.print( "#Commande : ");
@@ -259,8 +274,8 @@ int parseCmd( String cmd ) {
         Serial1.println("wrong duration");
       }
     } else if ( cmdName.equals("setIntensity")){
-      float tmp = cmdParam.toFloat();
-      if ( tmp >= 0 && tmp <= 1){
+      byte tmp = (byte)cmdParam.toInt();
+      if ( tmp >= 0 && tmp <= 255){
         intensity = tmp;
         Serial1.print("Intensity set to " );
         Serial1.println( intensity );
