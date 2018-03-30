@@ -1,7 +1,8 @@
 # Led master 
 
 A bluetooth controler for a WS2811 led strip.
-This project is linked with an ionic app in order to control hte strip.
+
+This project is linked with an [ionic app](https://github.com/ThibaultMetais/ledmaster2) in order to control the strip.
 
 ## Build
 
